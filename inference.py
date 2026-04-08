@@ -2,30 +2,20 @@ import asyncio
 import os
 import json
 import logging
+import sys
+import requests
 from openai import OpenAI
 from dotenv import load_dotenv
-import inspect
-import sys
-from openenv.core.env_client import EnvClient
 from client.client_wrapper import InventoryEnv
-
-server_dir = os.path.join(os.path.dirname(__file__), "server")
-if server_dir not in sys.path:
-    sys.path.append(server_dir)
-# Import your specific environment and actions
-from server.my_env_environment import MyEnvironment
 from models import InventoryAction, InventoryObservation, ActionType 
 
 load_dotenv()
 logger = logging.getLogger("InferenceModule")
-# # --- CONFIGURATION ---
-# API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
-# MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-# API_KEY =os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") 
+
+# --- CONFIGURATION (STRICTLY FROM ENV) ---
 API_BASE_URL = os.getenv("API_BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
 API_KEY = os.getenv("HF_TOKEN")
-
 
 # --- HACKATHON LOGGING ---
 def log_start(task, env, model): print(f"[START] task={task} env={env} model={model}", flush=True)
@@ -37,43 +27,51 @@ def log_end(success, steps, score, rewards):
 # --- LLM ACTION GENERATOR ---
 def get_llama_action(client, source_text, mode="MAPPING") -> dict:
     if mode == "MAPPING":
-        system_prompt = "You are an Inventory Mapper. Map CSV to JSON. Respond ONLY with JSON."
-        user_prompt = f"Map this row: {source_text}. Structure: {{'sku': '...', 'metadata': {{'name': '...', 'price': 0.0, 'stock': 0}}}}"
+        system_prompt = "You are an Inventory Mapper. Respond ONLY with raw JSON."
+        user_prompt = f"Map this row: {source_text}. Format: {{'sku': '...', 'metadata': {{'name': '...', 'price': 0.0, 'stock': 0}}}}"
     else: # UPDATE
-        system_prompt = "You are an Inventory Clerk. Extract SKU and updates. Respond ONLY with JSON."
-        user_prompt = f"Message: {source_text}. Structure: {{'sku': '...', 'updates': {{'price': 0.0, 'stock': 0}}}}"
+        system_prompt = "You are an Inventory Clerk. Respond ONLY with raw JSON."
+        user_prompt = f"Message: {source_text}. Format: {{'sku': '...', 'updates': {{'price': 0.0, 'stock': 0}}}}"
 
     try:
+        # response_format removed to prevent 400 Bad Request on proxy
         completion = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            temperature=0.1,
-            response_format={"type": "json_object"}
+            temperature=0.1
         )
-        return json.loads(completion.choices[0].message.content)
-    except Exception:
+        content = completion.choices[0].message.content
+        # Remove markdown code blocks if the LLM adds them
+        content = content.replace("```json", "").replace("```", "").strip()
+        return json.loads(content)
+    except Exception as e:
+        sys.stderr.write(f"LLM Error: {e}\n")
         return {}
 
 # --- MAIN EXECUTION ---
 async def main():
+    if not API_BASE_URL or not API_KEY:
+        sys.stderr.write("Missing environment variables\n")
+        return
+
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    env = InventoryEnv(base_url="https://vidhisingh-inventory-agent-env.hf.space")
-    # env = EnvClient(base_url="https://vidhisingh-inventory-agent-env.hf.space")
-    # env = MyEnvironment(base_url="https://vidhisingh-inventory-agent-env.hf.space")
-    rewards, steps, success, score = [], 0, False, 0.0
+    # Ensure this URL is reachable by the platform's validator
+    env = InventoryEnv(base_url="[https://vidhisingh-inventory-agent-env.hf.space](https://vidhisingh-inventory-agent-env.hf.space)")
     
+    rewards, steps, success, score = [], 0, False, 0.0
     log_start("automated_inventory_management", "openenv_ecommerce_challenge", MODEL_NAME)
 
     try:
         # --- PHASE 1: MAPPING ---
-        
         result = await env.reset()
         obs = result.observation if hasattr(result, 'observation') else result
         
         while not obs.done:
-            steps += 1
             llm_json = get_llama_action(client, obs.source_text, mode="MAPPING")
-            
+            if not llm_json or "sku" not in llm_json:
+                break # Stop if we can't get valid JSON
+                
+            steps += 1
             action = InventoryAction(
                 action_type=ActionType.MAP,
                 sku=llm_json.get("sku"),
@@ -82,55 +80,57 @@ async def main():
             
             result = await env.step(action)
             obs = result.observation if hasattr(result, 'observation') else result
-            rewards.append(getattr(result, 'reward', 0.0))
-            log_step(steps, json.dumps(llm_result := llm_json), rewards[-1], False, None)
+            reward = getattr(result, 'reward', 0.0)
+            rewards.append(reward)
+            log_step(steps, json.dumps(llm_json), reward, False, None)
 
         # --- PHASE 2: DETERMINISTIC MERGE ---
         print("\n--- STARTING DETERMINISTIC DEDUPLICATION ---", flush=True)
-        # Using the actual server logic to get inventory
-        # Note: If env doesn't have get_full_inventory, we skip to Phase 3
-        import requests
-        
-        # Hit the custom endpoint you added to app.py
-        resp = requests.get("https://vidhisingh-inventory-agent-env.hf.space/inventory")
+        resp = requests.get("[https://vidhisingh-inventory-agent-env.hf.space/inventory](https://vidhisingh-inventory-agent-env.hf.space/inventory)", timeout=10)
 
         if resp.status_code == 200:
             live_records = resp.json().get("records", [])
             for record in live_records:
                 if record.get('is_validated'): continue
                 steps += 1
-                logger.info(f"🔗 Reconciling SKU: {record.get('sku')}...")
-                # This 'env.step' sends the merge command to the HF Space
                 action = InventoryAction(
                     action_type=ActionType.MERGE,
                     sku=record.get('sku'),
                     duplicate_id=str(record.get('_id'))
                 )
                 result = await env.step(action)
-                rewards.append(getattr(result, 'reward', 0.0))
-                log_step(steps, "REMOTE_MERGE", rewards[-1], False, None)
+                reward = getattr(result, 'reward', 0.0)
+                rewards.append(reward)
+                log_step(steps, f"MERGE_{record.get('sku')}", reward, False, None)
+
         # --- PHASE 3: CHAT UPDATES ---
         print("\n--- STARTING CHAT UPDATES ---", flush=True)
-        chat_queries = ["Update price of APL-IP15-P to 800 and stock to 2"] # You can add more here
+        chat_queries = ["Update price of APL-IP15-P to 800 and stock to 2"]
         
-        for query in chat_queries:
-            steps += 1
+        for i, query in enumerate(chat_queries):
             llm_json = get_llama_action(client, query, mode="UPDATE")
-            
-            # FIX: Mapping 'updates' from LLM to 'metadata' for InventoryAction
+            if not llm_json or "sku" not in llm_json:
+                continue
+
+            steps += 1
             action = InventoryAction(
                 action_type=ActionType.UPDATE,
                 sku=llm_json.get("sku"),
-                metadata=llm_json.get("updates") # This matches your old loop's logic
+                metadata=llm_json.get("updates")
             )
             
             result = await env.step(action)
-            rewards.append(getattr(result, 'reward', 0.0))
-            log_step(steps, json.dumps(llm_json), rewards[-1], True, None)
+            reward = getattr(result, 'reward', 0.0)
+            rewards.append(reward)
+            # Final step: Set done=True
+            is_final = (i == len(chat_queries) - 1)
+            log_step(steps, json.dumps(llm_json), reward, is_final, None)
 
         score = sum(rewards) / steps if steps > 0 else 0
         success = score > 0.7
 
+    except Exception as e:
+        sys.stderr.write(f"Runtime Error: {e}\n")
     finally:
         await env.close()
         log_end(success, steps, score, rewards)
