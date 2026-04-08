@@ -138,55 +138,58 @@ class InventoryDB:
             inventory.append(item)
         return inventory
     def merge_products(self, duplicate_id: str):
-        # We use a completely different way to log to avoid the variable error
-        logger.info(f"📡 SERVER RECEIVE: ID {duplicate_id}")
-        
+        sku = "INITIALIZING"
         try:
-            # Step 1: Convert ID
             d_id = ObjectId(duplicate_id)
-            
-            # Step 2: Find record
             dirty_record = self.collection.find_one({"_id": d_id})
-            if not dirty_record:
-                return False, f"Record {duplicate_id} not found."
+            if not dirty_record: return False, "Not found"
 
-            # Step 3: Get SKU
-            found_sku = dirty_record.get('sku', "Unknown")
-            print(f"🔄 PROCESSING: {found_sku}", flush=True)
-
-            # Step 4: Ground Truth
-            json_path = "/app/data/ground_truth.json" if os.path.exists("/app/data/ground_truth.json") else "data/ground_truth.json"
+            sku = dirty_record.get('sku', "Unknown")
+            
+            # 1. FIXED PATH: Use the absolute path for HF
+            json_path = "/app/data/ground_truth.json"
             if not os.path.exists(json_path):
-                return False, f"Missing JSON at {json_path}"
+                # Fallback to local path if /app doesn't exist
+                json_path = os.path.join(os.path.dirname(__file__), "..", "data", "ground_truth.json")
 
-            with open(json_path, 'r') as f:
-                data = json.load(f)
-                golden = next((item for item in data if item["sku"] == found_sku), None)
+            golden = None
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    data = json.load(f)
+                    golden = next((item for item in data if item["sku"] == sku), None)
 
+            # 2. THE SAFETY GATE: If no golden record, STOP HERE.
             if not golden:
-                return False, f"SKU {found_sku} not in JSON"
+                print(f"⚠️ SKIPPING DELETE: SKU {sku} not found in JSON at {json_path}", flush=True)
+                return False, "SKU mismatch"
 
-            # Step 5: Update
-            self.collection.update_one(
-                {"sku": found_sku},
+            # 3. ONLY DELETE IF UPDATE SUCCEEDS
+            existing_clean = self.collection.find_one({"sku": sku, "is_validated": True})
+            total_stock = (existing_clean.get('stock', 0) if existing_clean else 0) + dirty_record.get('stock', 0)
+
+            update_result = self.collection.update_one(
+                {"sku": sku},
                 {"$set": {
                     "name": golden['name'],
                     "price": golden['price'],
-                    "is_validated": True,
-                    "stock": dirty_record.get('stock', 0)
+                    "stock": total_stock,
+                    "is_validated": True
                 }},
                 upsert=True
             )
             
-            # Step 6: Delete
-            self.collection.delete_one({"_id": d_id})
-            return True, "Reconciled"
+            # 4. CRITICAL: Only delete the dirty record if the Golden one is safe
+            if update_result.acknowledged:
+                self.collection.delete_one({"_id": d_id})
+                print(f"🚀 SUCCESS: {sku} merged and dirty record deleted.", flush=True)
+                return True, "Reconciled"
+            
+            return False, "Update not acknowledged"
 
         except Exception as e:
-            # CRITICAL: Do NOT use the variable 'sku' or 'found_sku' here.
-            # Only print the raw error 'e'.
-            print(f"🔥 SERVER ERROR: {str(e)}", flush=True)
-            return False, f"Internal Error: {str(e)}"#     """
+            print(f"🔥 MERGE ERROR: {str(e)}", flush=True)
+            return False, str(e)
+        #     """
     #     1. Combines stock.
     #     2. Fetches 'Correct Name' from Ground Truth based on SKU.
     #     3. Deletes the duplicate.
