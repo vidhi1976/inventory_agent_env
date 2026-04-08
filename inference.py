@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from client.client_wrapper import InventoryEnv
 from models import InventoryAction, InventoryObservation, ActionType 
 
-load_dotenv()
+# load_dotenv()
 logger = logging.getLogger("InferenceModule")
 
 # --- CONFIGURATION (STRICTLY FROM ENV) ---
