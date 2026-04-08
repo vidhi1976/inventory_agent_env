@@ -1,0 +1,9 @@
+motor>=3.7.1
+ollama>=0.6.1
+openai>=2.30.0
+openenv-core[core]>=0.2.1
+pymongo>=4.16.0
+
+[dev]
+pytest>=8.0.0
+pytest-cov>=4.0.0

@@ -1,0 +1,232 @@
+python -m client.agent_loop
+2026-04-07 15:32:24,077 - AgentLoop - INFO - 🎮 Starting DATA MAPPING Session (CSV -> Master DB)...
+2026-04-07 15:32:24,140 - InventoryClient - INFO - 📥 REWARD: 0.0 | DONE: False | MSG: Environment Ready: Starting migration/mapping from CSV to DB.
+2026-04-07 15:32:24,141 - AgentLoop - INFO - 🧐 Mapping CSV Row: {'title': 'iPhon 15P', 'price': 999.0, 'supplier_sku': 'APL-IP15', 'stock': 10}...
+2026-04-07 15:32:25,695 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-07 15:32:25,718 - AgentLoop - INFO - LLM Mapping Decision: {'action_type': 'MAP', 'sku': 'APL-IP15-P', 'metadata': {'name': 'iPhone 15 Pro', 'category': 'Electronics', 'price': 999.0, 'supplier_sku': 'APL-IP15', 'stock': 10}, 'primary_id': '69cd4a39012ab053d843f8db', 'duplicate_id': None}
+2026-04-07 15:32:25,719 - InventoryClient - INFO - 🚀 SENDING ACTION: MAP | SKU: APL-IP15-P
+2026-04-07 15:32:25,738 - InventoryClient - INFO - ✅ SUCCESS: 📥 REWARD: 1.0 | DONE: False | MSG: Mapped SKU: APL-IP15-P | ✅ Schema Mapping complete.
+2026-04-07 15:32:25,739 - AgentLoop - INFO - ✅ Row Mapped Successfully: APL-IP15-P
+2026-04-07 15:32:25,740 - AgentLoop - INFO - 🧐 Mapping CSV Row: {'title': 'Samsng S24 Ultra', 'price': 1199.0, 'supplier_sku': 'S24-U', 'stock': 5}...
+2026-04-07 15:32:26,106 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-07 15:32:26,108 - AgentLoop - INFO - LLM Mapping Decision: {'action_type': 'MAP', 'sku': 'SAM-S24-U', 'metadata': {'name': 'Samsung S24 Ultra', 'category': 'Electronics', 'price': 1199.0, 'supplier_sku': 'S24-U', 'stock': 5}, 'primary_id': '69cd4a39012ab053d843f8dc', 'duplicate_id': None}
+2026-04-07 15:32:26,109 - InventoryClient - INFO - 🚀 SENDING ACTION: MAP | SKU: SAM-S24-U
+2026-04-07 15:32:26,127 - InventoryClient - INFO - ✅ SUCCESS: 📥 REWARD: 1.0 | DONE: False | MSG: Mapped SKU: SAM-S24-U | ✅ Schema Mapping complete.
+2026-04-07 15:32:26,129 - AgentLoop - INFO - ✅ Row Mapped Successfully: SAM-S24-U
+2026-04-07 15:32:26,130 - AgentLoop - INFO - 🧐 Mapping CSV Row: {'title': 'sony wh-1000xm5', 'price': 349.5, 'supplier_sku': 'SNY-WH', 'stock': 15}...
+2026-04-07 15:32:26,730 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-07 15:32:26,732 - AgentLoop - INFO - LLM Mapping Decision: {'action_type': 'MAP', 'sku': 'SNY-WH1000', 'metadata': {'name': 'Sony WH-1000XM5', 'category': 'Electronics', 'price': 349.5, 'supplier_sku': 'SNY-WH', 'stock': 15}, 'primary_id': '69cd4a39012ab053d843f8dd', 'duplicate_id': None}
+2026-04-07 15:32:26,733 - InventoryClient - INFO - 🚀 SENDING ACTION: MAP | SKU: SNY-WH1000
+2026-04-07 15:32:26,758 - InventoryClient - INFO - ✅ SUCCESS: 📥 REWARD: 1.0 | DONE: False | MSG: Mapped SKU: SNY-WH1000 | ✅ Schema Mapping complete.
+2026-04-07 15:32:26,759 - AgentLoop - INFO - ✅ Row Mapped Successfully: SNY-WH1000
+2026-04-07 15:32:26,760 - AgentLoop - INFO - 🧐 Mapping CSV Row: {'title': 'Logitech MX Master', 'price': 95.0, 'supplier_sku': 'LOG-MX3S', 'stock': 20}...
+2026-04-07 15:32:27,555 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-07 15:32:27,557 - AgentLoop - INFO - LLM Mapping Decision: {'action_type': 'MAP', 'sku': 'LOG-MX-M3', 'metadata': {'name': 'Logitech MX Master', 'category': 'Electronics', 'price': 95.0, 'supplier_sku': 'LOG-MX3S', 'stock': 20}, 'primary_id': '69cd4a39012ab053d843f8de', 'duplicate_id': None}
+2026-04-07 15:32:27,558 - InventoryClient - INFO - 🚀 SENDING ACTION: MAP | SKU: LOG-MX-M3
+2026-04-07 15:32:27,582 - InventoryClient - INFO - ✅ SUCCESS: 📥 REWARD: 1.0 | DONE: False | MSG: Mapped SKU: LOG-MX-M3 | ✅ Schema Mapping complete.
+2026-04-07 15:32:27,584 - AgentLoop - INFO - ✅ Row Mapped Successfully: LOG-MX-M3
+2026-04-07 15:32:27,585 - AgentLoop - INFO - 🧐 Mapping CSV Row: {'title': 'iPhone 15 Pro', 'price': 999.0, 'supplier_sku': 'APL-IP15-P', 'stock': 8}...
+2026-04-07 15:32:28,255 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-07 15:32:28,257 - AgentLoop - INFO - LLM Mapping Decision: {'action_type': 'UPDATE', 'sku': 'APL-IP15-P', 'metadata': {'name': 'iPhone 15 Pro', 'category': 'Electronics', 'price': 999.0, 'supplier_sku': 'APL-IP15-P', 'stock': 8}, 'primary_id': '69cd4a39012ab053d843f8db', 'duplicate_id': None}
+2026-04-07 15:32:28,258 - InventoryClient - INFO - 🚀 SENDING ACTION: MAP | SKU: APL-IP15-P
+2026-04-07 15:32:28,287 - InventoryClient - INFO - ✅ SUCCESS: 📥 REWARD: 1.0 | DONE: False | MSG: Mapped SKU: APL-IP15-P | ✅ Schema Mapping complete.
+2026-04-07 15:32:28,290 - AgentLoop - INFO - ✅ Row Mapped Successfully: APL-IP15-P
+2026-04-07 15:32:28,292 - AgentLoop - INFO - 🧐 Mapping CSV Row: {'title': 'SAMSUNG S24 U', 'price': 1200.0, 'supplier_sku': 'SAM-S24', 'stock': 2}...
+2026-04-07 15:32:28,783 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-07 15:32:28,786 - AgentLoop - INFO - LLM Mapping Decision: {'action_type': 'MAP', 'sku': 'SAM-S24-U', 'metadata': {'name': 'Samsung S24 Ultra', 'category': 'Electronics', 'price': 1200.0, 'supplier_sku': 'SAM-S24', 'stock': 2}, 'primary_id': '69cd4a39012ab053d843f8dc', 'duplicate_id': None}
+2026-04-07 15:32:28,789 - InventoryClient - INFO - 🚀 SENDING ACTION: MAP | SKU: SAM-S24-U
+2026-04-07 15:32:28,815 - InventoryClient - INFO - ✅ SUCCESS: 📥 REWARD: 1.0 | DONE: False | MSG: Mapped SKU: SAM-S24-U | ✅ Schema Mapping complete.
+2026-04-07 15:32:28,816 - AgentLoop - INFO - ✅ Row Mapped Successfully: SAM-S24-U
+2026-04-07 15:32:28,816 - AgentLoop - INFO - 🧐 Mapping CSV Row: {'title': 'Sony Headphones', 'price': 350.0, 'supplier_sku': 'SNY-1000', 'stock': 1}...
+2026-04-07 15:32:29,175 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-07 15:32:29,177 - AgentLoop - INFO - LLM Mapping Decision: {'action_type': 'MAP', 'sku': 'SNY-WH1000', 'metadata': {'name': 'Sony Headphones', 'category': 'Electronics', 'price': 350.0, 'supplier_sku': 'SNY-1000', 'stock': 1}, 'primary_id': '69cd4a39012ab053d843f8dd', 'duplicate_id': None}
+2026-04-07 15:32:29,178 - InventoryClient - INFO - 🚀 SENDING ACTION: MAP | SKU: SNY-WH1000
+2026-04-07 15:32:29,185 - InventoryClient - INFO - ✅ SUCCESS: 📥 REWARD: 1.0 | DONE: True | MSG: Mapped SKU: SNY-WH1000 | ✅ Schema Mapping complete.
+2026-04-07 15:32:29,186 - AgentLoop - INFO - ✅ Row Mapped Successfully: SNY-WH1000
+2026-04-07 15:32:29,186 - AgentLoop - INFO - 🏁 Migration Complete. Database is now populated with mapped data.
+(openenv-my-env) PS C:\Users\dento\Desktop\webdev\meta\my_env> 
+did:updated stock number in supplier CSV , added suggestions log , added stock in db utils
+
+todo: stock_delta logic
+
+
+
+{
+  "action": {
+    "$defs": {
+      "ActionType": {
+        "enum": [
+          "MAP",
+          "MERGE",
+          "UPDATE",
+          "SKIP"
+        ],
+        "title": "ActionType",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "The Action sent by the Llama Agent to the OpenEnv Server.",
+    "properties": {
+      "metadata": {
+        "additionalProperties": true,
+        "description": "Additional product details",
+        "title": "Metadata",
+        "type": "object"
+      },
+      "action_type": {
+        "$ref": "#/$defs/ActionType",
+        "description": "The type of operation to perform"
+      },
+      "sku": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "The SKU to target or create",
+        "title": "Sku"
+      },
+      "primary_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Target ID for MERGE tasks",
+        "title": "Primary Id"
+      },
+      "duplicate_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Source ID to be deleted in MERGE",
+        "title": "Duplicate Id"
+      },
+      "stock_delta": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Amount to add/subtract for UPDATE_STOCK",
+        "title": "Stock Delta"
+      }
+    },
+    "required": [
+      "action_type"
+    ],
+    "title": "InventoryAction",
+    "type": "object"
+  },
+  "observation": {
+    "additionalProperties": false,
+    "description": "The data the Llama Agent 'sees' at each step.",
+    "properties": {
+      "done": {
+        "default": false,
+        "description": "Whether the episode is finished",
+        "title": "Done",
+        "type": "boolean"
+      },
+      "reward": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Reward from the PREVIOUS action",
+        "title": "Reward"
+      },
+      "metadata": {
+        "additionalProperties": true,
+        "description": "Additional metadata for the observation",
+        "title": "Metadata",
+        "type": "object"
+      },
+      "source_text": {
+        "description": "The CSV row or Email text to process",
+        "title": "Source Text",
+        "type": "string"
+      },
+      "task_difficulty": {
+        "default": "easy",
+        "description": "Current level: easy, medium, or hard",
+        "title": "Task Difficulty",
+        "type": "string"
+      },
+      "db_suggestions": {
+        "description": "Top 3 matches found in MongoDB for this item",
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Db Suggestions",
+        "type": "array"
+      },
+      "message": {
+        "default": "",
+        "description": "Feedback from the server (e.g., 'Merge Successful')",
+        "title": "Message",
+        "type": "string"
+      }
+    },
+    "required": [
+      "source_text"
+    ],
+    "title": "InventoryObservation",
+    "type": "object"
+  },
+  "state": {
+    "additionalProperties": true,
+    "description": "Base class for environment state.\n\nRepresents internal environment state, separate from observations.",
+    "properties": {
+      "episode_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Unique identifier for the current episode",
+        "title": "Episode Id"
+      },
+      "step_count": {
+        "default": 0,
+        "description": "Number of steps taken in the current episode",
+        "minimum": 0,
+        "title": "Step Count",
+        "type": "integer"
+      }
+    },
+    "title": "State",
+    "type": "object"
+  }
+}
+
+dockerfile move?
