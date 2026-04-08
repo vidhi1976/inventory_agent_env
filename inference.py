@@ -21,10 +21,10 @@ logger = logging.getLogger("InferenceModule")
 # # --- CONFIGURATION ---
 # API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
 # MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-API_KEY =os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") 
+# API_KEY =os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") 
 API_BASE_URL = os.getenv("API_BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
-# API_KEY = os.getenv("HF_TOKEN")
+API_KEY = os.getenv("HF_TOKEN")
 
 
 # --- HACKATHON LOGGING ---
@@ -111,7 +111,7 @@ async def main():
                 log_step(steps, "REMOTE_MERGE", rewards[-1], False, None)
         # --- PHASE 3: CHAT UPDATES ---
         print("\n--- STARTING CHAT UPDATES ---", flush=True)
-        chat_queries = ["Update price of APL-IP15-P to 1050"] # You can add more here
+        chat_queries = ["Update price of APL-IP15-P to 800 and stock to 2"] # You can add more here
         
         for query in chat_queries:
             steps += 1
