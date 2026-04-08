@@ -77,3 +77,9 @@ def validate_action(action_type: str, sku: str, provided_data: dict, db_helper=N
         return 1.0, f"✅ Update Verified for SKU {sku}."
 
     return -0.1, f"Unknown Action Type: {action_type}"
+
+
+if(__name__ == "__main__"):
+    # Quick local test
+    reward, msg = validate_action("MAP", "APL-IP15-P", {"name": "Apple iPhone 15 Pro"}, None)
+    print(f"Reward: {reward}, Message: {msg}"   )

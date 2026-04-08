@@ -4,7 +4,13 @@ import json
 from openai import OpenAI
 from dotenv import load_dotenv
 import inspect
+import sys
+from openenv.core.env_client import EnvClient
+from client.client_wrapper import InventoryEnv
 
+server_dir = os.path.join(os.path.dirname(__file__), "server")
+if server_dir not in sys.path:
+    sys.path.append(server_dir)
 # Import your specific environment and actions
 from server.my_env_environment import MyEnvironment
 from models import InventoryAction, InventoryObservation, ActionType 
@@ -14,7 +20,8 @@ load_dotenv()
 # --- CONFIGURATION ---
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("GROQ_API_KEY")
+API_KEY =os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") 
+
 
 # --- HACKATHON LOGGING ---
 def log_start(task, env, model): print(f"[START] task={task} env={env} model={model}", flush=True)
@@ -46,14 +53,17 @@ def get_llama_action(client, source_text, mode="MAPPING") -> dict:
 # --- MAIN EXECUTION ---
 async def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    env = MyEnvironment()
+    env = InventoryEnv(base_url="https://vidhisingh-inventory-agent-env.hf.space")
+    # env = EnvClient(base_url="https://vidhisingh-inventory-agent-env.hf.space")
+    # env = MyEnvironment(base_url="https://vidhisingh-inventory-agent-env.hf.space")
     rewards, steps, success, score = [], 0, False, 0.0
     
     log_start("automated_inventory_management", "openenv_ecommerce_challenge", MODEL_NAME)
 
     try:
         # --- PHASE 1: MAPPING ---
-        result = env.reset()
+        
+        result = await env.reset()
         obs = result.observation if hasattr(result, 'observation') else result
         
         while not obs.done:
@@ -66,7 +76,7 @@ async def main():
                 metadata=llm_json.get("metadata")
             )
             
-            result = env.step(action)
+            result = await env.step(action)
             obs = result.observation if hasattr(result, 'observation') else result
             rewards.append(getattr(result, 'reward', 0.0))
             log_step(steps, json.dumps(llm_result := llm_json), rewards[-1], False, None)
@@ -75,20 +85,26 @@ async def main():
         print("\n--- STARTING DETERMINISTIC DEDUPLICATION ---", flush=True)
         # Using the actual server logic to get inventory
         # Note: If env doesn't have get_full_inventory, we skip to Phase 3
-        if hasattr(env, 'db') and hasattr(env.db, 'get_all_inventory'):
-            live_records = env.db.get_all_inventory()
+        import requests
+        
+        # Hit the custom endpoint you added to app.py
+        resp = requests.get("https://vidhisingh-inventory-agent-env.hf.space/inventory")
+        
+        if resp.status_code == 200:
+            live_records = resp.json().get("records", [])
             for record in live_records:
                 if record.get('is_validated'): continue
                 steps += 1
+                
+                # This 'env.step' sends the merge command to the HF Space
                 action = InventoryAction(
                     action_type=ActionType.MERGE,
                     sku=record.get('sku'),
                     duplicate_id=str(record.get('_id'))
                 )
-                result = env.step(action)
+                result = await env.step(action)
                 rewards.append(getattr(result, 'reward', 0.0))
-                log_step(steps, "DETERMINISTIC_MERGE", rewards[-1], False, None)
-
+                log_step(steps, "REMOTE_MERGE", rewards[-1], False, None)
         # --- PHASE 3: CHAT UPDATES ---
         print("\n--- STARTING CHAT UPDATES ---", flush=True)
         chat_queries = ["Update price of APL-IP15-P to 1050"] # You can add more here
@@ -104,7 +120,7 @@ async def main():
                 metadata=llm_json.get("updates") # This matches your old loop's logic
             )
             
-            result = env.step(action)
+            result = await env.step(action)
             rewards.append(getattr(result, 'reward', 0.0))
             log_step(steps, json.dumps(llm_json), rewards[-1], True, None)
 
@@ -112,7 +128,7 @@ async def main():
         success = score > 0.7
 
     finally:
-        env.close()
+        await env.close()
         log_end(success, steps, score, rewards)
 
 if __name__ == "__main__":

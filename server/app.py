@@ -65,11 +65,12 @@ async def root():
     </body>
     """
 
-def main(host: str = "0.0.0.0", port: int = 8000): 
+def main(): 
+    host = "0.0.0.0"
+    port = int(os.environ.get("PORT", 8000))
     logger.info(f"🚀 Inventory Server starting at http://{host}:{port}")
     uvicorn.run(app, host=host, port=port)
 
 if __name__ == "__main__":
-    # HF Spaces passes the port via environment variables sometimes
-    port = int(os.environ.get("PORT", 8000))
-    main(host="0.0.0.0", port=port)
+    
+    main()

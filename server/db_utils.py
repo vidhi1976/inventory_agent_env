@@ -1,3 +1,4 @@
+import json
 import os
 import csv
 import logging
@@ -100,6 +101,7 @@ class InventoryDB:
         Updates specific fields for a validated record.
         'updates' can contain 'price', 'stock', or both.
         """
+        print(f"DEBUG: Entering update_product for {sku}", flush=True)
         if not sku:
             return False, "No SKU provided for update."
 
@@ -108,7 +110,7 @@ class InventoryDB:
             {"sku": sku, "is_validated": True},
             {"$set": updates}
         )
-        
+        print(f"DEBUG ATLAS: Updated {sku}. Matched: {result.matched_count}, Modified: {result.modified_count}")
         if result.modified_count > 0:
             return True, f"Successfully updated {list(updates.keys())} for {sku}."
         return False, f"SKU {sku} not found or no changes made."
@@ -141,57 +143,62 @@ class InventoryDB:
     
     def merge_products(self, duplicate_id: str):
         """
-        Deterministic Reconciler:
-        1. Finds the messy record by ID.
-        2. Finds the corresponding 'Golden Record' in Ground Truth by SKU.
-        3. Merges data and sums stock in the Live Inventory.
+        Deterministic Reconciler using local JSON Ground Truth.
+
         """
-        from bson import ObjectId
+        print(f"DEBUG: Attempting merge for SKU {sku} with ID {duplicate_id}", flush=True)
         try:
             d_id = ObjectId(duplicate_id)
             
-            # 1. Fetch the 'Dirty' record we just added from CSV
+            # 1. Fetch the messy record from Atlas
             dirty_record = self.collection.find_one({"_id": d_id})
             if not dirty_record:
                 return False, "Record not found in Live Inventory."
 
             sku = dirty_record.get('sku')
+
+            # 2. Load Ground Truth from the local JSON file
+            json_path = os.getenv("GROUND_TRUTH_PATH", "data/ground_truth.json")
+            golden = None
             
-            # 2. INTERNAL DB CALL: Find the 'Golden' version in Ground Truth
-            golden = self.db["ground_truth"].find_one({"sku": sku})
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    ground_truth_data = json.load(f)
+                    # Find the matching SKU in your JSON list
+                    golden = next((item for item in ground_truth_data if item["sku"] == sku), None)
+
             if not golden:
-                return False, f"SKU {sku} not found in Master Catalog (Ground Truth)."
+                return False, f"SKU {sku} not found in local Ground Truth JSON."
 
-            # 3. Check if a 'Clean' version already exists in our Live DB
-            # If it does, we add to its stock. If not, we create it.
+            # 3. Calculate merged stock
+            # Look for ANY existing record with this SKU that is already validated
             existing_clean = self.collection.find_one({"sku": sku, "is_validated": True})
-            
-            current_stock = dirty_record.get('stock', 0)
-            base_stock = existing_clean.get('stock', 0) if existing_clean else 0
-            total_stock = base_stock + current_stock
+            total_stock = (existing_clean.get('stock', 0) if existing_clean else 0) + dirty_record.get('stock', 0)
 
-            # 4. UPSERT: Save the Golden Record to Live Inventory
+            # 4. UPSERT the "Golden" version to Atlas
+            # We filter by SKU only so we overwrite the dirty one or update the clean one
             self.collection.update_one(
-                {"sku": sku, "is_validated": True},
+                {"sku": sku}, 
                 {"$set": {
                     "name": golden['name'],
-                    "category": golden.get('category'),
+                    "category": golden.get('category', 'General'),
                     "price": golden.get('price'),
                     "stock": total_stock,
-                    "is_validated": True
+                    "is_validated": True  # Gate opens for Phase 3
                 }},
                 upsert=True
             )
 
-            # 5. DELETE: Remove the messy record (unless it was already the clean one)
+            # 5. DELETE the messy temporary record if it's not the one we just upserted
+            # This prevents self-deletion if the dirty record was the only one.
             if not existing_clean or str(existing_clean['_id']) != str(d_id):
-                self.collection.delete_one({"_id": d_id})
+                self.collection.delete_one({"_id": d_id, "is_validated": False})
             
-            return True, f"Successfully reconciled SKU {sku}. Total Stock: {total_stock}"
+            return True, f"Reconciled {sku} via JSON Truth. Total Stock: {total_stock}"
 
         except Exception as e:
             return False, str(e)
-    # def merge_products(self, primary_id, duplicate_id):
+           # def merge_products(self, primary_id, duplicate_id):
     #     """
     #     1. Combines stock.
     #     2. Fetches 'Correct Name' from Ground Truth based on SKU.
