@@ -69,7 +69,7 @@ class MyEnvironment(Environment):
         result_msg = ""
         reward = 0.0
         validation_msg = ""
-
+        print(f"🚀 SERVER STEP RECEIVED: {action.action_type}", flush=True)
         # 1. Branch Logic based on Action Type
         if action.action_type == ActionType.MAP:
             # PURE MAPPING
