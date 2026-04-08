@@ -138,36 +138,40 @@ class InventoryDB:
             inventory.append(item)
         return inventory
     def merge_products(self, duplicate_id: str):
-        sku = "INITIALIZING"
+        sku = "Unknown"
         try:
             d_id = ObjectId(duplicate_id)
             dirty_record = self.collection.find_one({"_id": d_id})
-            if not dirty_record: return False, "Not found"
+            if not dirty_record: return False, "Already deleted or not found"
 
             sku = dirty_record.get('sku', "Unknown")
             
-            # 1. FIXED PATH: Use the absolute path for HF
-            json_path = "/app/data/ground_truth.json"
-            if not os.path.exists(json_path):
-                # Fallback to local path if /app doesn't exist
-                json_path = os.path.join(os.path.dirname(__file__), "..", "data", "ground_truth.json")
-
+            # --- FIND GOLDEN DATA ---
+            # Try to find the file in the most likely HF location
+            json_path = "/app/data/ground_truth.json" if os.path.exists("/app/data/ground_truth.json") else "data/ground_truth.json"
+            
             golden = None
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     data = json.load(f)
-                    golden = next((item for item in data if item["sku"] == sku), None)
+                    # Use .strip() to avoid whitespace issues
+                    golden = next((item for item in data if item["sku"].strip() == sku.strip()), None)
 
-            # 2. THE SAFETY GATE: If no golden record, STOP HERE.
+            # --- THE SAFETY CHECK ---
             if not golden:
-                print(f"⚠️ SKIPPING DELETE: SKU {sku} not found in JSON at {json_path}", flush=True)
-                return False, "SKU mismatch"
+                print(f"❌ STOP: SKU {sku} not in JSON. Keeping dirty record.", flush=True)
+                return False, f"SKU {sku} not found in Truth"
 
-            # 3. ONLY DELETE IF UPDATE SUCCEEDS
+            # --- THE REPLACEMENT ---
+            # We build the clean record first
+            total_stock = dirty_record.get('stock', 0)
+            # Check if a clean one already exists to sum the stock
             existing_clean = self.collection.find_one({"sku": sku, "is_validated": True})
-            total_stock = (existing_clean.get('stock', 0) if existing_clean else 0) + dirty_record.get('stock', 0)
+            if existing_clean:
+                total_stock += existing_clean.get('stock', 0)
 
-            update_result = self.collection.update_one(
+            # Upsert the Golden Record
+            self.collection.update_one(
                 {"sku": sku},
                 {"$set": {
                     "name": golden['name'],
@@ -177,17 +181,14 @@ class InventoryDB:
                 }},
                 upsert=True
             )
-            
-            # 4. CRITICAL: Only delete the dirty record if the Golden one is safe
-            if update_result.acknowledged:
-                self.collection.delete_one({"_id": d_id})
-                print(f"🚀 SUCCESS: {sku} merged and dirty record deleted.", flush=True)
-                return True, "Reconciled"
-            
-            return False, "Update not acknowledged"
+
+            # --- THE DELETE (Only happens if we got this far) ---
+            self.collection.delete_one({"_id": d_id})
+            print(f"✅ SUCCESS: {sku} Reconciled.", flush=True)
+            return True, "Success"
 
         except Exception as e:
-            print(f"🔥 MERGE ERROR: {str(e)}", flush=True)
+            print(f"🔥 CRITICAL ERROR: {str(e)}", flush=True)
             return False, str(e)
         #     """
     #     1. Combines stock.
