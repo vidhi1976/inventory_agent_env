@@ -137,60 +137,74 @@ class InventoryDB:
             item['_id'] = str(item['_id'])
             inventory.append(item)
         return inventory
+
     def merge_products(self, duplicate_id: str):
         sku = "Unknown"
         try:
             d_id = ObjectId(duplicate_id)
+            
+            # 1. Fetch the messy record
             dirty_record = self.collection.find_one({"_id": d_id})
-            if not dirty_record: return False, "Already deleted or not found"
+            if not dirty_record: 
+                return False, "Record already deleted or not found"
 
             sku = dirty_record.get('sku', "Unknown")
             
-            # --- FIND GOLDEN DATA ---
-            # Try to find the file in the most likely HF location
+            # 2. Path-finding for Ground Truth
             json_path = "/app/data/ground_truth.json" if os.path.exists("/app/data/ground_truth.json") else "data/ground_truth.json"
             
             golden = None
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     data = json.load(f)
-                    # Use .strip() to avoid whitespace issues
                     golden = next((item for item in data if item["sku"].strip() == sku.strip()), None)
 
-            # --- THE SAFETY CHECK ---
             if not golden:
                 print(f"❌ STOP: SKU {sku} not in JSON. Keeping dirty record.", flush=True)
                 return False, f"SKU {sku} not found in Truth"
 
-            # --- THE REPLACEMENT ---
-            # We build the clean record first
-            total_stock = dirty_record.get('stock', 0)
-            # Check if a clean one already exists to sum the stock
-            existing_clean = self.collection.find_one({"sku": sku, "is_validated": True})
-            if existing_clean:
-                total_stock += existing_clean.get('stock', 0)
+            # 3. Calculate Total Stock
+            # Look for an ALREADY validated record with this SKU (excluding the current one)
+            existing_clean = self.collection.find_one({
+                "sku": sku, 
+                "is_validated": True, 
+                "_id": {"$ne": d_id} 
+            })
+            
+            current_dirty_stock = dirty_record.get('stock', 0)
+            clean_stock = existing_clean.get('stock', 0) if existing_clean else 0
+            total_stock = clean_stock + current_dirty_stock
 
-            # Upsert the Golden Record
+            # 4. UPSERT: Create/Update the Golden Record
+            # We filter by SKU to ensure only ONE master record exists per SKU
             self.collection.update_one(
-                {"sku": sku},
+                {"sku": sku, "is_validated": True}, # Target the validated one if it exists
                 {"$set": {
                     "name": golden['name'],
-                    "price": golden['price'],
+                    "category": golden.get('category', 'General'),
+                    "price": golden.get('price'),
                     "stock": total_stock,
                     "is_validated": True
                 }},
                 upsert=True
             )
 
-            # --- THE DELETE (Only happens if we got this far) ---
-            self.collection.delete_one({"_id": d_id})
-            print(f"✅ SUCCESS: {sku} Reconciled.", flush=True)
-            return True, "Success"
+            # 5. RE-FETCH to find the "Survivor"
+            golden_record = self.collection.find_one({"sku": sku, "is_validated": True})
+            golden_id = golden_record["_id"] if golden_record else None
+
+            # 6. DELETE the dirty record ONLY if it wasn't the one we just upgraded
+            if golden_id and str(d_id) != str(golden_id):
+                self.collection.delete_one({"_id": d_id})
+                print(f"✅ SUCCESS: Consolidated {sku}. Deleted duplicate {d_id}.", flush=True)
+            else:
+                print(f"💎 PROTECTED: {sku} upgraded in-place. No deletion needed.", flush=True)
+
+            return True, "Reconciliation Success"
 
         except Exception as e:
             print(f"🔥 CRITICAL ERROR: {str(e)}", flush=True)
             return False, str(e)
-        #     """
     #     1. Combines stock.
     #     2. Fetches 'Correct Name' from Ground Truth based on SKU.
     #     3. Deletes the duplicate.
