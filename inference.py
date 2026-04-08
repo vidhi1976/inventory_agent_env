@@ -18,10 +18,13 @@ from models import InventoryAction, InventoryObservation, ActionType
 
 load_dotenv()
 logger = logging.getLogger("InferenceModule")
-# --- CONFIGURATION ---
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-API_KEY =os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") 
+# # --- CONFIGURATION ---
+# API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
+# MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+# API_KEY =os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") 
+API_BASE_URL = os.getenv("API_BASE_URL")
+MODEL_NAME = os.getenv("MODEL_NAME")
+API_KEY = os.getenv("HF_TOKEN")
 
 
 # --- HACKATHON LOGGING ---
