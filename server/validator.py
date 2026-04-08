@@ -11,8 +11,9 @@ def validate_action(action_type: str, sku: str, provided_data: dict, db_helper=N
     Handles MAPPING, MERGING, and CONVERSATIONAL UPDATES.
     """
     base_dir = os.path.dirname(__file__)
+    truth_path = "/app/data/ground_truth.json" if os.path.exists("/app/data/ground_truth.json") else os.path.join(base_dir, "..", "data", "ground_truth.json")
     # Ensure this path matches your project structure
-    truth_path = os.path.join(base_dir, "..", "data", "ground_truth.json")
+    # truth_path = os.path.join(base_dir, "..", "data", "ground_truth.json")
 
     try:
         with open(truth_path, 'r') as f:
@@ -22,7 +23,7 @@ def validate_action(action_type: str, sku: str, provided_data: dict, db_helper=N
         return 0.0, "System Error: Truth file missing."
 
     # --- 1. SEARCH LOGIC: Find the Master Record ---
-    
+    master_record = None
     # Attempt A: Exact SKU match
     master_record = next((item for item in truth_data if item["sku"] == sku), None)
     

@@ -72,55 +72,54 @@ class MyEnvironment(Environment):
 
         # 1. Branch Logic based on Action Type
         if action.action_type == ActionType.MAP:
-            # PURE MAPPING: No validation check against Ground Truth
+            # PURE MAPPING
             self.db.add_product(action.sku, action.metadata)
             result_msg = f"Mapped SKU: {action.sku}"
-            
-            # During the Mapping Phase, we give a standard reward for successful format transfer
             reward = 1.0 
             validation_msg = "✅ Schema Mapping complete."
 
         elif action.action_type == ActionType.MERGE:
-            # MERGE: This IS where we want to validate
-            self.db.merge_products( action.duplicate_id)
-            result_msg = "Products Merged"
+            # CORRECTED: Put MERGE in its own block
+            logger.info(f"Attempting MERGE for ID: {action.duplicate_id}...")
+            success, result_msg = self.db.merge_products(action.duplicate_id)
             
-            # Only run validation logic for MERGE/UPDATE
+            # Use fallback to prevent validator crash
+            action_metadata = action.metadata if action.metadata is not None else {}
+            
             reward, validation_msg = validate_action(
                 action.action_type.value, 
                 action.sku, 
-                action.metadata
+                action_metadata, 
+                self.db
             )
+
         elif action.action_type == ActionType.UPDATE:
-            # 1. Database Update
             success, result_msg = self.db.update_product(action.sku, action.metadata)
-            
-            # 2. Validation
-            # We pass the metadata (the changes) to the validator
             reward, validation_msg = validate_action(
                 action.action_type.value, 
                 action.sku, 
                 action.metadata,
-                self.db # Pass db helper for Ground Truth lookups
+                self.db
             )
             
+            # Return immediately for updates to keep session alive
             return InventoryObservation(
                 source_text=f"Update Request for {action.sku}",
                 message=f"{result_msg} | {validation_msg}",
                 reward=reward,
-                done=False # Keep the session alive for more chat
+                done=False
             )
-        # 2. Advance the pointer (The "Task List")
+
+        # 2. Advance the pointer for MAP/MERGE actions
         self.current_data_pointer += 1
         is_done = self.current_data_pointer >= len(self.all_rows)
         
-        # 3. Get next observation or finish
+        # 3. Get next observation
         next_obs_text = ""
         next_suggestions = []
         if not is_done:
             next_row = self.all_rows[self.current_data_pointer]
             next_obs_text = str(next_row)
-            # Fetch suggestions to help with the NEXT decision
             next_suggestions = self.db.find_suggestions(
                 next_row.get('title', ''), 
                 next_row.get('supplier_sku', '')

@@ -1,6 +1,7 @@
 import asyncio
 import os
 import json
+import logging
 from openai import OpenAI
 from dotenv import load_dotenv
 import inspect
@@ -16,7 +17,7 @@ from server.my_env_environment import MyEnvironment
 from models import InventoryAction, InventoryObservation, ActionType 
 
 load_dotenv()
-
+logger = logging.getLogger("InferenceModule")
 # --- CONFIGURATION ---
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
@@ -89,13 +90,13 @@ async def main():
         
         # Hit the custom endpoint you added to app.py
         resp = requests.get("https://vidhisingh-inventory-agent-env.hf.space/inventory")
-        
+
         if resp.status_code == 200:
             live_records = resp.json().get("records", [])
             for record in live_records:
                 if record.get('is_validated'): continue
                 steps += 1
-                
+                logger.info(f"🔗 Reconciling SKU: {record.get('sku')}...")
                 # This 'env.step' sends the merge command to the HF Space
                 action = InventoryAction(
                     action_type=ActionType.MERGE,

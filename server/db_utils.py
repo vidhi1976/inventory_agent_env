@@ -140,66 +140,56 @@ class InventoryDB:
             item['_id'] = str(item['_id'])
             inventory.append(item)
         return inventory
-    
     def merge_products(self, duplicate_id: str):
-        """
-        Deterministic Reconciler using local JSON Ground Truth.
-
-        """
-        print(f"DEBUG: Attempting merge for SKU {sku} with ID {duplicate_id}", flush=True)
+        # We use a completely different way to log to avoid the variable error
+        logger.info(f"📡 SERVER RECEIVE: ID {duplicate_id}")
+        
         try:
+            # Step 1: Convert ID
             d_id = ObjectId(duplicate_id)
             
-            # 1. Fetch the messy record from Atlas
+            # Step 2: Find record
             dirty_record = self.collection.find_one({"_id": d_id})
             if not dirty_record:
-                return False, "Record not found in Live Inventory."
+                return False, f"Record {duplicate_id} not found."
 
-            sku = dirty_record.get('sku')
+            # Step 3: Get SKU
+            found_sku = dirty_record.get('sku', "Unknown")
+            print(f"🔄 PROCESSING: {found_sku}", flush=True)
 
-            # 2. Load Ground Truth from the local JSON file
-            json_path = os.getenv("GROUND_TRUTH_PATH", "data/ground_truth.json")
-            golden = None
-            
-            if os.path.exists(json_path):
-                with open(json_path, 'r') as f:
-                    ground_truth_data = json.load(f)
-                    # Find the matching SKU in your JSON list
-                    golden = next((item for item in ground_truth_data if item["sku"] == sku), None)
+            # Step 4: Ground Truth
+            json_path = "/app/data/ground_truth.json" if os.path.exists("/app/data/ground_truth.json") else "data/ground_truth.json"
+            if not os.path.exists(json_path):
+                return False, f"Missing JSON at {json_path}"
+
+            with open(json_path, 'r') as f:
+                data = json.load(f)
+                golden = next((item for item in data if item["sku"] == found_sku), None)
 
             if not golden:
-                return False, f"SKU {sku} not found in local Ground Truth JSON."
+                return False, f"SKU {found_sku} not in JSON"
 
-            # 3. Calculate merged stock
-            # Look for ANY existing record with this SKU that is already validated
-            existing_clean = self.collection.find_one({"sku": sku, "is_validated": True})
-            total_stock = (existing_clean.get('stock', 0) if existing_clean else 0) + dirty_record.get('stock', 0)
-
-            # 4. UPSERT the "Golden" version to Atlas
-            # We filter by SKU only so we overwrite the dirty one or update the clean one
+            # Step 5: Update
             self.collection.update_one(
-                {"sku": sku}, 
+                {"sku": found_sku},
                 {"$set": {
                     "name": golden['name'],
-                    "category": golden.get('category', 'General'),
-                    "price": golden.get('price'),
-                    "stock": total_stock,
-                    "is_validated": True  # Gate opens for Phase 3
+                    "price": golden['price'],
+                    "is_validated": True,
+                    "stock": dirty_record.get('stock', 0)
                 }},
                 upsert=True
             )
-
-            # 5. DELETE the messy temporary record if it's not the one we just upserted
-            # This prevents self-deletion if the dirty record was the only one.
-            if not existing_clean or str(existing_clean['_id']) != str(d_id):
-                self.collection.delete_one({"_id": d_id, "is_validated": False})
             
-            return True, f"Reconciled {sku} via JSON Truth. Total Stock: {total_stock}"
+            # Step 6: Delete
+            self.collection.delete_one({"_id": d_id})
+            return True, "Reconciled"
 
         except Exception as e:
-            return False, str(e)
-           # def merge_products(self, primary_id, duplicate_id):
-    #     """
+            # CRITICAL: Do NOT use the variable 'sku' or 'found_sku' here.
+            # Only print the raw error 'e'.
+            print(f"🔥 SERVER ERROR: {str(e)}", flush=True)
+            return False, f"Internal Error: {str(e)}"#     """
     #     1. Combines stock.
     #     2. Fetches 'Correct Name' from Ground Truth based on SKU.
     #     3. Deletes the duplicate.
