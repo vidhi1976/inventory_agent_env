@@ -79,23 +79,20 @@ class InventoryDB:
     #     }
     #     return self.collection.insert_one(product)
     def add_product(self, sku, metadata):
-        """The Agent calls this to 'Map' a dirty row into the clean schema."""
         clean_mapped_record = {
-            "sku": sku,                                  # Master SKU from Agent
-            "name": metadata.get("name", "Unknown"),    # Mapping 'title' -> 'name'
-            "category": metadata.get("category", "N/A"), # Agent infers category
+            "sku": sku,
+            "name": metadata.get("name", "Unknown"),
+            "category": metadata.get("category", "N/A"),
             "price": float(metadata.get("price", 0.0)),
             "stock": int(metadata.get("stock", 0)),
-            "is_validated": False                         # A flag to show it hasn't been merged/verified yet
+            "is_validated": False 
         }
-        # Insert the cleaned record into the live inventory
-        logger.info(f"Attempting to add product to DB: {clean_mapped_record}")
-        return self.collection.insert_one(clean_mapped_record)
-        # return self.collection.update_one(
-        #     {"sku": sku}, 
-        #     {"$set": clean_mapped_record}, 
-        #     upsert=True
-        # )
+        # Use update_one with upsert=True to FORCE the write
+        return self.collection.update_one(
+            {"sku": sku, "is_validated": False}, 
+            {"$set": clean_mapped_record}, 
+            upsert=True
+        )
     def update_product(self, sku, updates: dict):
         """
         Updates specific fields for a validated record.
