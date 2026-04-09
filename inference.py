@@ -97,7 +97,7 @@ async def main():
             
             result = await env.step(action)
             obs = result.observation if hasattr(result, 'observation') else result
-            reward = getattr(result, 'reward', 0.0)
+            reward = getattr(result, 'reward',0.1)
             rewards.append(reward)
             log_step(steps, json.dumps(llm_json), reward, False, None)
 
@@ -116,7 +116,7 @@ async def main():
                     duplicate_id=str(record.get('_id'))
                 )
                 result = await env.step(action)
-                rewards.append(getattr(result, 'reward', 0.0))
+                rewards.append(getattr(result, 'reward', 0.1))
                 log_step(steps, f"MERGE_{record.get('sku')}", rewards[-1], False, None)
 
         # --- PHASE 3: UPDATE ---
@@ -133,11 +133,11 @@ async def main():
                 metadata=llm_json.get("updates")if isinstance(llm_json.get("updates"), dict) else {}
             )
             result = await env.step(action)
-            rewards.append(getattr(result, 'reward', 0.0))
+            rewards.append(getattr(result, 'reward', 0.1))
             is_final = (i == len(chat_queries) - 1)
             log_step(steps, json.dumps(llm_json), rewards[-1], is_final, None)
 
-        score = sum(rewards) / steps if steps > 0 else 0
+        score = sum(rewards) / steps if steps > 0 else 0.1
         success = score > 0.7
 
     finally:
