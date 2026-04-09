@@ -59,13 +59,17 @@ async def main():
         
         while not obs.done:
             llm_json = get_llama_action(client, obs.source_text, mode="MAPPING")
-            if not llm_json or "sku" not in llm_json: break
-                
+            sku = llm_json.get("sku")
+            metadata = llm_json.get("metadata")
+            if not sku:
+                print(f"⚠️ Skipping row: LLM failed to extract SKU from {obs.source_text[:30]}...")
+                # You might need to trigger a dummy step or break depending on env logic
+                break
             steps += 1
             action = InventoryAction(
                 action_type=ActionType.MAP,
-                sku=llm_json.get("sku"),
-                metadata=llm_json.get("metadata")
+                sku=str(sku),
+                metadata=metadata if isinstance(metadata, dict) else {}
             )
             
             result = await env.step(action)
@@ -99,7 +103,7 @@ async def main():
             action = InventoryAction(
                 action_type=ActionType.UPDATE,
                 sku=llm_json.get("sku"),
-                metadata=llm_json.get("updates")
+                metadata=llm_json.get("updates")if isinstance(llm_json.get("updates"), dict) else {}
             )
             result = await env.step(action)
             rewards.append(getattr(result, 'reward', 0.0))
