@@ -25,7 +25,7 @@ def log_end(success, steps, score, rewards):
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={','.join(f'{r:.2f}' for r in rewards)}", flush=True)
 
 # --- LLM ACTION GENERATOR ---
-def get_llama_action(client, source_text, mode="MAPPING") -> dict:
+def get_llama_action(client, model_name, source_text, mode="MAPPING")-> dict:
     if mode == "MAPPING":
         system_prompt = "You are an Inventory Mapper. Respond ONLY with raw JSON."
         user_prompt = f"Map this row: {source_text}. Format: {{'sku': '...', 'metadata': {{'name': '...', 'price': 0.0, 'stock': 0}}}}"
@@ -50,16 +50,20 @@ def get_llama_action(client, source_text, mode="MAPPING") -> dict:
 
 # --- MAIN EXECUTION ---
 async def main():
-    if not API_BASE_URL or not API_KEY:
-        sys.stderr.write("Missing environment variables\n")
+    api_base_url = os.environ.get("API_BASE_URL")
+    model_name = os.environ.get("MODEL_NAME")
+    api_key = os.environ.get("API_KEY")
+    if not all([api_base_url, model_name, api_key]):
+        sys.stderr.write("Missing platform environment variables\n")
         return
+    
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     # Ensure this URL is reachable by the platform's validator
     env = InventoryEnv(base_url="[https://vidhisingh-inventory-agent-env.hf.space](https://vidhisingh-inventory-agent-env.hf.space)")
     
     rewards, steps, success, score = [], 0, False, 0.0
-    log_start("automated_inventory_management", "openenv_ecommerce_challenge", MODEL_NAME)
+    log_start("automated_inventory_management", "openenv_ecommerce_challenge", model_name)
 
     try:
         # --- PHASE 1: MAPPING ---
@@ -67,7 +71,8 @@ async def main():
         obs = result.observation if hasattr(result, 'observation') else result
         
         while not obs.done:
-            llm_json = get_llama_action(client, obs.source_text, mode="MAPPING")
+            llm_json = get_llama_action(client, model_name, obs.source_text, mode="MAPPING")
+            
             if not llm_json or "sku" not in llm_json:
                 break # Stop if we can't get valid JSON
                 
