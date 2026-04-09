@@ -73,8 +73,7 @@ async def main():
     rewards, steps, success, score = [], 0, False, 0.0
     
     # 3. Log Start BEFORE any network calls
-    log_start("automated_inventory_management", "openenv_ecommerce_challenge", MODEL_NAME)
-
+    
     try:
         # --- PHASE 1: MAPPING ---
         log_start("inventory_mapping", "openenv_ecommerce_challenge", MODEL_NAME)
