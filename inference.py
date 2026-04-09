@@ -26,7 +26,7 @@ def get_llama_action(client, source_text, mode="MAPPING") -> dict:
         user_prompt = f"Map this row: {source_text}. Format: {{'sku': '...', 'metadata': {{'name': '...', 'price': 0.0, 'stock': 0}}}}"
     else: # UPDATE
         system_prompt = "You are an Inventory Clerk. Respond ONLY with raw JSON. The update can be of price or stock or both."
-        user_prompt = f"Message: {source_text}. Format: {{'sku': '...', 'updates': {{'price': 0.0, 'stock': 0}}}}"
+        user_prompt = f"Message: {source_text}. Format can be of following types depending on the prompt: {{'sku': '...', 'updates': {{'price': 0.0, 'stock': 0}}}} or {{'sku': '...', 'updates': {{'price': 0.0}}}} or {{'sku': '...', 'updates': {{'stock': 0}}}}"
     try:
         # response_format removed to prevent 400 Bad Request on proxy
         completion = client.chat.completions.create(
