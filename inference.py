@@ -21,47 +21,25 @@ def log_end(success, steps, score, rewards):
 
 # --- LLM ACTION GENERATOR ---
 def get_llama_action(client, source_text, mode="MAPPING") -> dict:
-
     if mode == "MAPPING":
-
         system_prompt = "You are an Inventory Mapper. Respond ONLY with raw JSON."
-
         user_prompt = f"Map this row: {source_text}. Format: {{'sku': '...', 'metadata': {{'name': '...', 'price': 0.0, 'stock': 0}}}}"
-
     else: # UPDATE
-
         system_prompt = "You are an Inventory Clerk. Respond ONLY with raw JSON."
-
         user_prompt = f"Message: {source_text}. Format: {{'sku': '...', 'updates': {{'price': 0.0, 'stock': 0}}}}"
-
-
-
     try:
-
         # response_format removed to prevent 400 Bad Request on proxy
-
         completion = client.chat.completions.create(
-
             model=MODEL_NAME,
-
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-
             temperature=0.1
-
         )
-
         content = completion.choices[0].message.content
-
         # Remove markdown code blocks if the LLM adds them
-
         content = content.replace("```json", "").replace("```", "").strip()
-
         return json.loads(content)
-
     except Exception as e:
-
         sys.stderr.write(f"LLM Error: {e}\n")
-
         return {}
 
 

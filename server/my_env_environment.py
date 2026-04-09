@@ -75,8 +75,14 @@ class MyEnvironment(Environment):
             # PURE MAPPING
             self.db.add_product(action.sku, action.metadata)
             result_msg = f"Mapped SKU: {action.sku}"
-            reward = 0.9 
-            validation_msg = "✅ Schema Mapping complete."
+            reward, validation_msg = validate_action(
+                action.action_type.value, 
+                action.sku, 
+                action.metadata or {}, 
+                self.db
+            )
+            # reward = 0.9 
+            # validation_msg = "✅ Schema Mapping complete."
 
         elif action.action_type == ActionType.MERGE:
             # CORRECTED: Put MERGE in its own block
