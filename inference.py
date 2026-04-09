@@ -13,9 +13,9 @@ from models import InventoryAction, InventoryObservation, ActionType
 logger = logging.getLogger("InferenceModule")
 
 # --- CONFIGURATION (STRICTLY FROM ENV) ---
-API_BASE_URL = os.getenv("API_BASE_URL")
-MODEL_NAME = os.getenv("MODEL_NAME")
-API_KEY = os.getenv("HF_TOKEN")
+API_BASE_URL = os.environ.get("API_BASE_URL")
+MODEL_NAME = os.environ.get("MODEL_NAME")
+API_KEY = os.environ.get("API_KEY")
 
 # --- HACKATHON LOGGING ---
 def log_start(task, env, model): print(f"[START] task={task} env={env} model={model}", flush=True)
