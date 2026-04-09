@@ -77,6 +77,7 @@ async def main():
 
     try:
         # --- PHASE 1: MAPPING ---
+        log_start("inventory_mapping", "openenv_ecommerce_challenge", MODEL_NAME)
         result = await env.reset()
         obs = result.observation if hasattr(result, 'observation') else result
         
@@ -102,6 +103,7 @@ async def main():
             log_step(steps, json.dumps(llm_json), reward, False, None)
 
         # --- PHASE 2: MERGE ---
+        log_start("inventory_reconciliation", "openenv_ecommerce_challenge", MODEL_NAME)
         resp = requests.get(f"{space_url}/inventory", timeout=10)
         if resp.status_code == 200:
             live_records = resp.json().get("records", [])
@@ -118,6 +120,7 @@ async def main():
                 log_step(steps, f"MERGE_{record.get('sku')}", rewards[-1], False, None)
 
         # --- PHASE 3: UPDATE ---
+        log_start("inventory_updates", "openenv_ecommerce_challenge", MODEL_NAME)
         chat_queries = ["Update price of APL-IP15-P to 800 and stock to 2"]
         for i, query in enumerate(chat_queries):
             llm_json = get_llama_action(client, query, mode="UPDATE")
