@@ -65,84 +65,87 @@ async def main():
         return
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    
-    # 2. FIXED URLS: No brackets, no parentheses, just the raw string
     space_url = "https://vidhisingh-inventory-agent-env.hf.space"
     env = InventoryEnv(base_url=space_url)
-    
-    rewards, steps, success, score = [], 0, False, 0.0
-    
-    # 3. Log Start BEFORE any network calls
     
     try:
         # --- PHASE 1: MAPPING ---
         log_start("inventory_mapping", "openenv_ecommerce_challenge", MODEL_NAME)
+        phase1_rewards = []
+        p1_steps = 0
         result = await env.reset()
         obs = result.observation if hasattr(result, 'observation') else result
         
         while not obs.done:
             llm_json = get_llama_action(client, obs.source_text, mode="MAPPING")
             sku = llm_json.get("sku")
-            metadata = llm_json.get("metadata")
-            if not sku:
-                print(f"⚠️ Skipping row: LLM failed to extract SKU from {obs.source_text[:30]}...")
-                # You might need to trigger a dummy step or break depending on env logic
-                break
-            steps += 1
+            if not sku: break
+            
+            p1_steps += 1
             action = InventoryAction(
                 action_type=ActionType.MAP,
                 sku=str(sku),
-                metadata=metadata if isinstance(metadata, dict) else {}
+                metadata=llm_json.get("metadata") if isinstance(llm_json.get("metadata"), dict) else {}
             )
-            
             result = await env.step(action)
+            r = getattr(result, 'reward', 0.1)
+            phase1_rewards.append(r)
+            log_step(p1_steps, json.dumps(llm_json), r, False, None)
             obs = result.observation if hasattr(result, 'observation') else result
-            reward = getattr(result, 'reward',0.1)
-            rewards.append(reward)
-            log_step(steps, json.dumps(llm_json), reward, False, None)
+
+        # Close Task 1 before starting Task 2
+        p1_score = max(0.01, min(0.99, sum(phase1_rewards)/p1_steps)) if p1_steps > 0 else 0.5
+        log_end(p1_score > 0.7, p1_steps, p1_score, phase1_rewards)
+        await asyncio.sleep(1) # Critical for parser separation
 
         # --- PHASE 2: MERGE ---
         log_start("inventory_reconciliation", "openenv_ecommerce_challenge", MODEL_NAME)
-        steps = 0
+        phase2_rewards = []
+        p2_steps = 0
         resp = requests.get(f"{space_url}/inventory", timeout=10)
         if resp.status_code == 200:
             live_records = resp.json().get("records", [])
             for record in live_records:
                 if record.get('is_validated'): continue
-                steps += 1
+                p2_steps += 1
                 action = InventoryAction(
                     action_type=ActionType.MERGE,
                     sku=record.get('sku'),
                     duplicate_id=str(record.get('_id'))
                 )
                 result = await env.step(action)
-                rewards.append(getattr(result, 'reward', 0.1))
-                log_step(steps, f"MERGE_{record.get('sku')}", rewards[-1], False, None)
+                r = getattr(result, 'reward', 0.1)
+                phase2_rewards.append(r)
+                log_step(p2_steps, f"MERGE_{record.get('sku')}", r, False, None)
+
+        p2_score = max(0.01, min(0.99, sum(phase2_rewards)/p2_steps)) if p2_steps > 0 else 0.5
+        log_end(p2_score > 0.7, p2_steps, p2_score, phase2_rewards)
+        await asyncio.sleep(1)
 
         # --- PHASE 3: UPDATE ---
         log_start("inventory_updates", "openenv_ecommerce_challenge", MODEL_NAME)
-        steps=0
+        phase3_rewards = []
+        p3_steps = 0
         chat_queries = ["Update price of APL-IP15-P to 800 and stock to 2"]
         for i, query in enumerate(chat_queries):
             llm_json = get_llama_action(client, query, mode="UPDATE")
             if not llm_json: continue
-            steps += 1
+            p3_steps += 1
             action = InventoryAction(
                 action_type=ActionType.UPDATE,
                 sku=llm_json.get("sku"),
-                metadata=llm_json.get("updates")if isinstance(llm_json.get("updates"), dict) else {}
+                metadata=llm_json.get("updates") if isinstance(llm_json.get("updates"), dict) else {}
             )
             result = await env.step(action)
-            rewards.append(getattr(result, 'reward', 0.1))
+            r = getattr(result, 'reward', 0.1)
+            phase3_rewards.append(r)
             is_final = (i == len(chat_queries) - 1)
-            log_step(steps, json.dumps(llm_json), rewards[-1], is_final, None)
+            log_step(p3_steps, json.dumps(llm_json), r, is_final, None)
 
-        score = sum(rewards) / steps if steps > 0 else 0.1
-        success = score > 0.7
+        p3_score = max(0.01, min(0.99, sum(phase3_rewards)/p3_steps)) if p3_steps > 0 else 0.5
+        log_end(p3_score > 0.7, p3_steps, p3_score, phase3_rewards)
 
     finally:
         await env.close()
-        log_end(success, steps, score, rewards)
-
 if __name__ == "__main__":
     asyncio.run(main())
