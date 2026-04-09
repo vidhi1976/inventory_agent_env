@@ -8,11 +8,6 @@ from openai import OpenAI
 from client.client_wrapper import InventoryEnv
 from models import InventoryAction, InventoryObservation, ActionType 
 
-# 1. CAPTURE ENV GLOBALLY OR INSIDE MAIN
-API_BASE_URL = os.environ.get("API_BASE_URL")
-MODEL_NAME = os.environ.get("MODEL_NAME")
-API_KEY = os.environ.get("API_KEY")
-
 # --- HACKATHON LOGGING ---
 def log_start(task, env, model): 
     print(f"[START] task={task} env={env} model={model}", flush=True)
@@ -27,14 +22,14 @@ def log_end(success, steps, score, rewards):
 def get_llama_action(client, model_to_use, source_text, mode="MAPPING") -> dict:
     if mode == "MAPPING":
         system_prompt = "You are an Inventory Mapper. Respond ONLY with raw JSON."
-        user_prompt = f"Map this row: {source_text}. Format: {{'sku': '...', 'metadata': {{'name': '...', 'price': 0.0, 'stock': 0}}}}"
+        user_prompt = f"Map: {source_text}. Format: {{'sku': '...', 'metadata': {{'name': '...', 'price': 0.0, 'stock': 0}}}}"
     else: 
         system_prompt = "You are an Inventory Clerk. Respond ONLY with raw JSON."
         user_prompt = f"Message: {source_text}. Format: {{'sku': '...', 'updates': {{'price': 0.0, 'stock': 0}}}}"
 
     try:
         completion = client.chat.completions.create(
-            model=model_to_use, # Use the passed variable
+            model=model_to_use,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             temperature=0.1
         )
@@ -42,31 +37,31 @@ def get_llama_action(client, model_to_use, source_text, mode="MAPPING") -> dict:
         content = content.replace("```json", "").replace("```", "").strip()
         return json.loads(content)
     except Exception as e:
-        # Avoid printing to stdout here to keep logs clean
         sys.stderr.write(f"LLM Error: {e}\n")
         return {}
 
 # --- MAIN EXECUTION ---
 async def main():
-    # Capture again inside main to be safe
+    # 1. Capture Platform Variables
     base_url = os.environ.get("API_BASE_URL")
     model_name = os.environ.get("MODEL_NAME")
     api_key = os.environ.get("API_KEY")
 
     if not all([base_url, model_name, api_key]):
-        sys.stderr.write("Missing platform environment variables\n")
+        sys.stderr.write("CRITICAL: Missing API environment variables\n")
         return
 
+    # 2. Setup Client & Environment
     client = OpenAI(base_url=base_url, api_key=api_key)
     
-    # CLEAN URL - No markdown brackets
+    # CLEAN URL - Plain string only
     space_url = "https://vidhisingh-inventory-agent-env.hf.space"
     env = InventoryEnv(base_url=space_url)
     
     rewards, steps, success, score = [], 0, False, 0.0
     
     try:
-        # LOG START IMMEDIATELY
+        # LOG START - Must be the first thing printed to stdout
         log_start("automated_inventory_management", "openenv_ecommerce_challenge", model_name)
 
         # --- PHASE 1: MAPPING ---
@@ -92,9 +87,7 @@ async def main():
             log_step(steps, json.dumps(llm_json), reward, False, None)
 
         # --- PHASE 2: DETERMINISTIC MERGE ---
-        inventory_endpoint = f"{space_url}/inventory"
-        resp = requests.get(inventory_endpoint, timeout=10)
-
+        resp = requests.get(f"{space_url}/inventory", timeout=15)
         if resp.status_code == 200:
             live_records = resp.json().get("records", [])
             for record in live_records:
@@ -112,11 +105,9 @@ async def main():
 
         # --- PHASE 3: CHAT UPDATES ---
         chat_queries = ["Update price of APL-IP15-P to 800 and stock to 2"]
-        
         for i, query in enumerate(chat_queries):
             llm_json = get_llama_action(client, model_name, query, mode="UPDATE")
-            if not llm_json or "sku" not in llm_json:
-                continue
+            if not llm_json or "sku" not in llm_json: continue
 
             steps += 1
             action = InventoryAction(
@@ -138,7 +129,7 @@ async def main():
         sys.stderr.write(f"Runtime Error: {e}\n")
     finally:
         await env.close()
-        # LOG END MUST ALWAYS FIRE
+        # ALWAYS log end to satisfy validator
         log_end(success, steps, score, rewards)
 
 if __name__ == "__main__":
