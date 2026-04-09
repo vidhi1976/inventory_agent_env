@@ -126,7 +126,7 @@ async def main():
         log_start("inventory_updates", "openenv_ecommerce_challenge", MODEL_NAME)
         phase3_rewards = []
         p3_steps = 0
-        chat_queries = ["Update price of APL-IP15-P to 800 and stock to 2"]
+        chat_queries = ["Update price of APL-IP15-P to 800 "]
         for i, query in enumerate(chat_queries):
             llm_json = get_llama_action(client, query, mode="UPDATE")
             if not llm_json: continue
