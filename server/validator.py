@@ -46,7 +46,7 @@ def validate_action(action_type: str, sku: str, provided_data: dict, db_helper=N
     # --- MAPPING & MERGING ---
     if action_type in ["MAP", "MERGE"]:
         if sku == master_record["sku"]:
-            return 1.0, f"✅ Perfect: Action applied using Master SKU: {sku}"
+            return 0.9, f"✅ Perfect: Action applied using Master SKU: {sku}"
         else:
             return 0.7, f"⚠️ Partial: Used Supplier SKU '{sku}'. Expected Master SKU '{master_record['sku']}'."
 
@@ -57,27 +57,27 @@ def validate_action(action_type: str, sku: str, provided_data: dict, db_helper=N
             try:
                 price = float(provided_data["price"])
                 if price <= 0:
-                    return -1.0, "❌ Invalid Price: Price must be positive."
+                    return 0.1, "❌ Invalid Price: Price must be positive."
                 
                 # Compare against Master Price in Ground Truth
                 master_price = float(master_record.get('price', 0))
                 if master_price > 0 and price < (master_price * 0.2):
-                    return -0.5, f"⚠️ Warning: Price ${price} is suspiciously low compared to Master ${master_price}."
+                    return 0.1, f"⚠️ Warning: Price ${price} is suspiciously low compared to Master ${master_price}."
             except ValueError:
-                return -1.0, "❌ Price must be a valid number."
+                return 0.1, "❌ Price must be a valid number."
 
         # Check 2: Stock Sanity
         if "stock" in provided_data:
             try:
                 stock = int(provided_data["stock"])
                 if stock < 0:
-                    return -1.0, "❌ Invalid Stock: Cannot have negative inventory."
+                    return 0.1, "❌ Invalid Stock: Cannot have negative inventory."
             except ValueError:
-                return -1.0, "❌ Stock must be an integer."
+                return 0.1, "❌ Stock must be an integer."
 
-        return 1.0, f"✅ Update Verified for SKU {sku}."
+        return 0.9, f"✅ Update Verified for SKU {sku}."
 
-    return -0.1, f"Unknown Action Type: {action_type}"
+    return 0.1, f"Unknown Action Type: {action_type}"
 
 
 if(__name__ == "__main__"):
