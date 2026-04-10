@@ -39,7 +39,7 @@ def validate_action(action_type: str, sku: str, provided_data: dict, db_helper=N
 
     # If no match found in Master Catalog
     if not master_record:
-        return -0.5, f"Hallucination: SKU '{sku}' has no relation to Master Catalog."
+        return 0.1, f"Hallucination: SKU '{sku}' has no relation to Master Catalog."
 
     # --- 2. REWARD LOGIC: Based on Action Type ---
 

@@ -79,8 +79,7 @@ async def main():
         while not obs.done:
             llm_json = get_llama_action(client, obs.source_text, mode="MAPPING")
             sku = llm_json.get("sku")
-            if not sku: break
-            
+            # if not sku: break
             p1_steps += 1
             action = InventoryAction(
                 action_type=ActionType.MAP,

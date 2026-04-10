@@ -230,3 +230,5 @@ todo: stock_delta logic
 }
 
 dockerfile move?
+
+add stocks in merge_prod
