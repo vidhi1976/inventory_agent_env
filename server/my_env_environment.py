@@ -5,12 +5,16 @@ from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
 # Import your helper classes
-from db_utils import InventoryDB
-from validator import validate_action
+
+
 try:
     from ..models import InventoryAction, InventoryObservation, ActionType
+    from .db_utils import InventoryDB
+    from .validator import validate_action
 except (ImportError, ValueError):
     from models import InventoryAction, InventoryObservation, ActionType
+    from db_utils import InventoryDB
+    from validator import validate_action
 
 logger = logging.getLogger("InventoryEnv")
 

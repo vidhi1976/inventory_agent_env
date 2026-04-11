@@ -148,3 +148,19 @@ my_env/
     ├── db_utils.py            # MongoDB helper functions
     └── Dockerfile             # Multi-stage build
 ```
+
+venv??
+pip install openenv-core
+.env
+run docker
+
+localhost8081 db
+
+if want to run on local
+docker compose command
+python -m server.app
+python -m client.agent_loop
+
+why is reward 1 and =0.5 when running agent_loop   prev docker cont running
+fix merging logic
+done variable??

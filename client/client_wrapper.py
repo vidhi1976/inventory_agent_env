@@ -23,6 +23,9 @@ class InventoryEnv(
     """
     Enhanced Client for the Automated E-Commerce Inventory Manager with Logging.
     """
+    def __init__(self, base_url: str, *args, **kwargs):
+        super().__init__(base_url=base_url, *args, **kwargs)
+        self.base_url = base_url
 
     def _step_payload(self, action: InventoryAction) -> Dict[str, Any]:
         """

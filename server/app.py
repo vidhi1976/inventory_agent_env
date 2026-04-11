@@ -5,22 +5,22 @@ from fastapi import HTTPException
 import uvicorn
 from fastapi.responses import HTMLResponse
 from openenv.core.env_server.http_server import create_app
-from my_env_environment import InventoryDB
-
+# from .my_env_environment import InventoryDB
+try:
+    from models import InventoryAction, InventoryObservation
+    from .my_env_environment import MyEnvironment , InventoryDB
+except (ModuleNotFoundError, ImportError):
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from models import InventoryAction, InventoryObservation
+    from my_env_environment import MyEnvironment, InventoryDB
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("InventoryServer")
 db_helper = InventoryDB()
 
 # --- IMPORT LOGIC ---
-try:
-    from models import InventoryAction, InventoryObservation
-    from my_env_environment import MyEnvironment
-except (ModuleNotFoundError, ImportError):
-    import sys
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from models import InventoryAction, InventoryObservation
-    from my_env_environment import MyEnvironment
+
 
 # Initialize the OpenEnv FastAPI application
 app = create_app(

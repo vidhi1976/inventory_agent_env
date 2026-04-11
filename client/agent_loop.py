@@ -1,5 +1,7 @@
 import logging
 import os
+
+from openai import OpenAI
 from .client_wrapper import InventoryEnv
 from inference import get_llama_action
 from models import InventoryAction, ActionType
@@ -9,26 +11,30 @@ load_dotenv()
 logger = logging.getLogger("AgentLoop")
 
 def run_inventory_session():
+    llm_client = OpenAI(
+        base_url=os.getenv("API_BASE_URL"), 
+        api_key=os.getenv("API_KEY")
+    )
     # 1. Connect to the OpenEnv Server
-    with InventoryEnv(base_url=os.getenv("server_url")).sync() as client:
+    with InventoryEnv(base_url=os.getenv("server_url")).sync() as env_client:
         
         # --- PHASE 1: AUTOMATIC MAPPING (CSV -> DB) ---
         logger.info("🚀 PHASE 1: Migration (CSV -> DB) Started...")
         
-        step_result = client.reset() 
+        step_result = env_client.reset() 
         obs = step_result.observation
         done = False
         while not done:
             logger.info(f"🧐 Mapping: {obs.source_text[:50]}...")
-            llm_json = get_llama_action(obs.source_text, obs.db_suggestions, mode="MAPPING")
-            
+            llm_json = get_llama_action(llm_client, obs.source_text, mode="MAPPING")
+            print(f"LLM JSON: {llm_json}")
             action = InventoryAction(
                 action_type=ActionType.MAP,
                 sku=llm_json.get("sku"),
                 metadata=llm_json.get("metadata")
             )
             
-            step_result = client.step(action)
+            step_result = env_client.step(action)
             obs = step_result.observation 
             done = step_result.done
             
@@ -39,7 +45,7 @@ def run_inventory_session():
         user_cmd = input("👉 Type 'clean' to begin Deduplication Pass: ").strip().lower()
         if user_cmd == "clean":
             logger.info("🧹 PHASE 2: Starting Reconciliation...")
-            live_records = client.get_full_inventory()
+            live_records = env_client.get_full_inventory()
             
             for record in live_records:
                 if record.get('is_validated'):
@@ -56,7 +62,7 @@ def run_inventory_session():
                     duplicate_id=record_id 
                 )
                 
-                step_result = client.step(action)
+                step_result = env_client.step(action)
                 logger.info(f"✅ Server Response: {step_result.observation.message}")
 
             logger.info("✨ CLEANING COMPLETE. Database matches Ground Truth.")
@@ -79,30 +85,28 @@ def run_inventory_session():
 
             # Ask Llama to extract structured data from natural language
             logger.info("🧠 Agent is thinking...")
-            llm_json = get_llama_action(chat_input, [], mode="UPDATE")
+            llm_json = get_llama_action(llm_client,chat_input, mode="UPDATE")
+            print(f"LLM JSON: {llm_json}")
+            
+            # Form the structured action
+            update_action = InventoryAction(
+                action_type=ActionType.UPDATE,
+                sku=llm_json.get("sku"),
+                # This contains the extracted data: e.g., {"price": 500}
+                metadata=llm_json.get("updates") 
+            )
 
-            if llm_json.get("action_type") == "UPDATE":
-                # Form the structured action
-                update_action = InventoryAction(
-                    action_type=ActionType.UPDATE,
-                    sku=llm_json.get("sku"),
-                    # This contains the extracted data: e.g., {"price": 500}
-                    metadata=llm_json.get("updates") 
-                )
+            # Send to server for processing and validation
+            step_result = env_client.step(update_action)
+            
+            # Retrieve the result message (which includes Validator feedback)
+            obs_msg = step_result.observation.message
+            reward = step_result.reward
 
-                # Send to server for processing and validation
-                step_result = client.step(update_action)
-                
-                # Retrieve the result message (which includes Validator feedback)
-                obs_msg = step_result.observation.message
-                reward = step_result.reward
-
-                if reward > 0:
-                    logger.info(f"✅ SUCCESS: {obs_msg}")
-                else:
-                    logger.warning(f"⚠️ REJECTED BY VALIDATOR: {obs_msg}")
+            if reward > 0:
+                logger.info(f"✅ SUCCESS: {obs_msg}")
             else:
-                logger.error("❌ Agent Error: I didn't catch a SKU or specific update in that command.")
-
+                logger.warning(f"⚠️ REJECTED BY VALIDATOR: {obs_msg}")
+        
 if __name__ == "__main__":
     run_inventory_session()
