@@ -164,3 +164,6 @@ python -m client.agent_loop
 why is reward 1 and =0.5 when running agent_loop   prev docker cont running
 fix merging logic
 done variable??
+ctegory not coming after map
+removee seed_db????
+what the hell are those functions in clientwrapper
