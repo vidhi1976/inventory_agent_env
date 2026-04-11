@@ -88,11 +88,14 @@ class InventoryDB:
             "is_validated": False 
         }
         # Use update_one with upsert=True to FORCE the write
-        return self.collection.update_one(
-            {"sku": sku, "is_validated": False}, 
-            {"$set": clean_mapped_record}, 
-            upsert=True
+        return self.collection.insert_one(
+            {
+                "sku":sku,
+                "is_validated":False,
+                **clean_mapped_record
+            }
         )
+       
     def update_product(self, sku, updates: dict):
         """
         Updates specific fields for a validated record.

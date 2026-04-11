@@ -64,14 +64,14 @@ class MyEnvironment(Environment):
             task_difficulty="easy", # Mapping is the 'Easy' entry task
             db_suggestions=suggestions,
             done=False,
-            reward=0.0,
+            reward=0.1,
             message="Environment Ready: Starting migration/mapping from CSV to DB."
         )
     def step(self, action: InventoryAction) -> InventoryObservation:
         self._state.step_count += 1
         
         result_msg = ""
-        reward = 0.0
+        reward = 0.1
         validation_msg = ""
         print(f"🚀 SERVER STEP RECEIVED: {action.action_type}", flush=True)
         # 1. Branch Logic based on Action Type

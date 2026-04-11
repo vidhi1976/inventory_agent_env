@@ -188,16 +188,27 @@ if __name__ == "__main__":
 
 ### Connecting to a Hosted Server
 
-If the environment is already running (locally or on Hugging Face), connect without spawning a new container:
+If the environment is already running (locally or on Hugging Face), connect directly:
 
 ```python
-from my_env import MyEnv
+from client.client_wrapper import InventoryEnv
+from models import InventoryAction, ActionType
+from inference import get_llama_action
+from openai import OpenAI
+import os
 
-env = MyEnv(base_url="https://<your-space-url>.hf.space")
+# Connect to hosted environment
+env = InventoryEnv(base_url="https://<your-space-url>.hf.space")
+client = OpenAI(base_url=os.getenv("API_BASE_URL"), api_key=os.getenv("API_KEY"))
 
-with env:
-    obs = env.reset().observation
-    print(f"Task for Agent: {obs.source_text}")
+# Use the environment
+result = await env.reset()
+obs = result.observation
+
+# Process with LLM
+llm_json = get_llama_action(client, obs.source_text, mode="MAPPING")
+action = InventoryAction(action_type=ActionType.MAP, sku=llm_json["sku"], metadata=llm_json["metadata"])
+result = await env.step(action)
 ```
 
 
@@ -218,7 +229,6 @@ my_env/
 │   ├── agent_loop.py             # Main agent execution loop
 │   └── client_wrapper.py         # Environment client wrapper
 ├── data/                         # Sample data and test files
-│   ├── delivery_notifications.txt
 │   ├── ground_truth.json
 │   └── supplier_products.csv
 └── server/                       # Server-side code
@@ -229,6 +239,6 @@ my_env/
     ├── seed_db.py                # Database seeding utilities
     ├── validator.py              # Data validation logic
     ├── requirements.txt          # Server dependencies
-    └── Dockerfile                # Server-specific Docker build
+
 ```
 
