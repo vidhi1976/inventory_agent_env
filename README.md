@@ -26,62 +26,135 @@ An automated ecommerce inventory environment built for the OpenEnv framework. Th
 
 ## 🚀 Quick Start
 
-The simplest way to use the environment is through the `MyEnv` class:
+### Setup Instructions
+
+1. **Create Virtual Environment**
+   ```bash
+   # Create virtual environment
+   python -m venv venv
+   ```
+
+2. **Activate Virtual Environment**
+   ```bash
+   # Activate your virtual environment
+   venv\Scripts\activate  # On Windows
+   # or
+   source venv/bin/activate  # On Unix systems
+   ```
+
+4. **Install Dependencies**
+   ```bash
+   pip install openenv-core
+   ```
+
+5. **Setup Environment Variables**
+   Create a `.env` file in the root directory with the following variables:
+   ```env
+   API_KEY=your_api_key_here
+   MONGO_URI=mongodb://localhost:27017
+   DB_NAME=your_database_name
+   server_url=http://localhost:8000
+   HF_TOKEN=your_huggingface_token_here
+   API_BASE_URL=your_api_base_url_here
+   MODEL_NAME=your_model_name_here
+   ```
+
+6. **Run Docker Containers**
+   ```bash
+   docker compose up -d
+   ```
+
+7. **Access Services**
+   - Database UI: http://localhost:8081
+   - Application: Run the agent loop script
+
+8. **Run the Application**
+   ```bash
+   python -m client.agent_loop
+   ```
+
+### Using the Environment
+
+The environment operates through three distinct phases. Here's how to use it programmatically:
 
 ```python
-from my_env import InventoryAction, MyEnv
-import asyncio
+import os
+from openai import OpenAI
+from client.client_wrapper import InventoryEnv
+from inference import get_llama_action
+from models import InventoryAction, ActionType
+from dotenv import load_dotenv
 
-async def run_example():
-    # Create environment from your local Docker image
-    env = MyEnv.from_docker_image("inventory_agent_v1:latest")
+load_dotenv()
 
-    try:
-        # Reset: Wipes DB and begins Phase 1 (CSV Migration)
-        result = env.reset()
-        print(f"Status: {result.observation.message}")
-
-        # Step: Map a specific SKU from the source text
-        action = InventoryAction(
-            action_type="MAP", 
-            sku="APL-IP15-P", 
-            metadata={"name": "iPhone 15 Pro", "price": 999.0, "stock": 10}
-        )
+def run_inventory_session():
+    # Initialize LLM client
+    llm_client = OpenAI(
+        base_url=os.getenv("API_BASE_URL"), 
+        api_key=os.getenv("API_KEY")
+    )
+    
+    # Connect to the OpenEnv Server
+    with InventoryEnv(base_url=os.getenv("server_url")).sync() as env_client:
         
-        result = env.step(action)
-        print(f"Feedback: {result.observation.message}")
-        print(f"Current Reward: {result.reward}")
-
-    finally:
-        # Always clean up the container session
-        env.close()
+        # --- PHASE 1: AUTOMATIC MAPPING (CSV -> DB) ---
+        step_result = env_client.reset() 
+        obs = step_result.observation
+        done = False
+        while not done:
+            # Use LLM to extract structured data from source text
+            llm_json = get_llama_action(llm_client, obs.source_text, mode="MAPPING")
+            action = InventoryAction(
+                action_type=ActionType.MAP,
+                sku=llm_json.get("sku"),
+                metadata=llm_json.get("metadata")
+            )
+            
+            step_result = env_client.step(action)
+            obs = step_result.observation 
+            done = step_result.done
+            
+        # --- PHASE 2: SERVER-SIDE RECONCILIATION ---
+        live_records = env_client.get_full_inventory()
+        for record in live_records:
+            if not record.get('is_validated'):
+                action = InventoryAction(
+                    action_type=ActionType.MERGE,
+                    sku=record.get('sku'),
+                    duplicate_id=str(record.get('_id'))
+                )
+                step_result = env_client.step(action)
+                
+        # --- PHASE 3: CONVERSATIONAL UPDATES ---
+        while True:
+            chat_input = input("\nUser: ").strip()
+            if chat_input.lower() in ['exit', 'quit']:
+                break
+                
+            llm_json = get_llama_action(llm_client, chat_input, mode="UPDATE")
+            update_action = InventoryAction(
+                action_type=ActionType.UPDATE,
+                sku=llm_json.get("sku"),
+                metadata=llm_json.get("updates")
+            )
+            
+            step_result = env_client.step(update_action)
+            if step_result.reward > 0:
+                print(f"SUCCESS: {step_result.observation.message}")
+            else:
+                print(f"REJECTED: {step_result.observation.message}")
 
 if __name__ == "__main__":
-    asyncio.run(run_example())
+    run_inventory_session()
 ```
-## 🐳 Building the Docker Image
 
-Before deploying to Hugging Face or running locally, build the production image:
+**Key Components:**
+- **`InventoryEnv`**: Client wrapper for connecting to the environment server
+- **`get_llama_action()`**: LLM-powered action extraction from text
+- **Three Phases**: Mapping (CSV import), Reconciliation (deduplication), Updates (conversational)
+- **Action Types**: `MAP`, `MERGE`, `UPDATE` for different phases
+- **Sync Context**: Use `.sync()` for synchronous operations
 
-```bash
-# From project root
-docker build -t inventory_agent_v1:latest -f server/Dockerfile .
-```
-## 🤗 Deploying to Hugging Face Spaces
-
-This environment is fully compatible with Hugging Face Docker Spaces.
-
-### Using the OpenEnv CLI
-
-```bash
-# Push to your namespace
-openenv push --app-port 8000
-```
-### Manual Deployment
-
-1. Create a new Docker Space on Hugging Face  
-2. Ensure `app_port: 8000` is set in the README metadata  
-3. Add your `GROQ_API_KEY` or `HF_TOKEN` as Secrets in Space settings  
 
 ### Included Endpoints
 
@@ -126,44 +199,36 @@ with env:
     obs = env.reset().observation
     print(f"Task for Agent: {obs.source_text}")
 ```
-## 🧪 Development Testing
 
-To verify environment logic without HTTP overhead:
 
-```bash
-python3 server/my_env_environment.py
-```
 ## 📁 Project Structure
 
 ```text
 my_env/
-├── README.md              # Documentation and HF Metadata
-├── openenv.yaml           # Manifest for the OpenEnv CLI
-├── pyproject.toml         # Python dependencies and build system
-├── models.py              # Pydantic models for Actions/Observations
-├── inference.py           # LLM-driven agent logic
-└── server/
-    ├── app.py                 # FastAPI server (Port 8000)
-    ├── my_env_environment.py  # Core logic and validation
-    ├── db_utils.py            # MongoDB helper functions
-    └── Dockerfile             # Multi-stage build
+├── README.md                     # Documentation and HF Metadata
+├── openenv.yaml                  # Manifest for the OpenEnv CLI
+├── pyproject.toml                # Python dependencies and build system
+├── docker-compose.yml            # Docker services configuration
+├── Dockerfile                    # Main Docker build file
+├── models.py                     # Pydantic models for Actions/Observations
+├── inference.py                  # LLM-driven agent logic
+├── __init__.py                   # Package initialization
+├── client/                       # Client-side code
+│   ├── __init__.py
+│   ├── agent_loop.py             # Main agent execution loop
+│   └── client_wrapper.py         # Environment client wrapper
+├── data/                         # Sample data and test files
+│   ├── delivery_notifications.txt
+│   ├── ground_truth.json
+│   └── supplier_products.csv
+└── server/                       # Server-side code
+    ├── __init__.py
+    ├── app.py                    # FastAPI server (Port 8000)
+    ├── my_env_environment.py     # Core logic and validation
+    ├── db_utils.py               # MongoDB helper functions
+    ├── seed_db.py                # Database seeding utilities
+    ├── validator.py              # Data validation logic
+    ├── requirements.txt          # Server dependencies
+    └── Dockerfile                # Server-specific Docker build
 ```
 
-venv??
-pip install openenv-core
-.env
-run docker
-
-localhost8081 db
-
-if want to run on local
-docker compose command
-python -m server.app
-python -m client.agent_loop
-
-why is reward 1 and =0.5 when running agent_loop   prev docker cont running
-fix merging logic
-done variable??
-ctegory not coming after map
-removee seed_db????
-what the hell are those functions in clientwrapper
